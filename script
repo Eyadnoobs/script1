@@ -125,7 +125,7 @@ local Button = MainTab:CreateButton({
 local Button = MainTab:CreateButton({
    Name = "executer tester",
    Callback = function()
-            loadstring(game:HttpGet("https://raw.githubusercontent.com/Eyadnoobs/script2-udt-executer-tester/refs/heads/main/script%20executer%20tester"))()`
+            loadstring(game:HttpGet("https://raw.githubusercontent.com/Eyadnoobs/script2-udt-executer-tester/refs/heads/main/script%20executer%20tester"))()
    end,
 })
 
