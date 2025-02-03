@@ -1,11 +1,12 @@
-local Rayfield = loadstring(game:HttpGet('https://[Log in to view URL]'))()
+
+local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
 local Window = Rayfield:CreateWindow({
    Name = "eyadnoobs hub",
    Icon = 0, -- Icon in Topbar. Can use Lucide Icons (string) or Roblox Image (number). 0 to use no icon (default).
    LoadingTitle = "eyadnoobs hub",
    LoadingSubtitle = "by eyadnoobs",
-   Theme = "Amethyst", -- Check https://[Log in to view URL]
+   Theme = "Amethyst", -- Check https://docs.sirius.menu/rayfield/configuration/themes
 
    DisableRayfieldPrompts = false,
    DisableBuildWarnings = false, -- Prevents Rayfield from warning when the script has a version mismatch with the interface
@@ -16,15 +17,9 @@ local Window = Rayfield:CreateWindow({
       FileName = "eyadnoobs Hub"
    },
 
-   Discord = {
-      Enabled = true, -- Prompt the user to join your Discord server if their executor supports it
-      Invite = "https://[Log in to view URL]", -- The Discord invite code, do not include discord.gg/. E.g. discord.gg/ ABCD would be ABCD
-      RememberJoins = true -- Set this to false to make them join the discord every time they load it up
-   },
-
    KeySystem = true, -- Set this to true to use our key system
    KeySettings = {
-      Title = "join the discord server    https://[Log in to view URL]",
+      Title = "join the discord server    https://discord.gg/tHjBVzUV",
       Subtitle = "Key System",
       Note = "key in the discord server", -- Use this to tell the user how to get a key
       FileName = "Key", -- It is recommended to use something unique as other scripts using Rayfield may overwrite your key file
@@ -38,7 +33,7 @@ local MainTab = Window:CreateTab("main", 4483362458) -- Title, Image
 local MainSection = MainTab:CreateSection("main")
 
 Rayfield:Notify({
-   Title = "join the discord server   https://[Log in to view URL]",
+   Title = "join the discord server   https://discord.gg/tHjBVzUV",
    Content = "Notification Content",
    Duration = 10,
    Image = 4483362458,
@@ -105,3 +100,69 @@ end
 noclip() -- to toggle noclip() and clip()
    end,
 })
+
+local scriptTab = Window:CreateTab("bloxfruits🍑", 4483362458) -- Title, Image
+local Section = scriptTab:CreateSection("scripts")
+
+local Button = scriptTab:CreateButton({
+   Name = "redz",
+   Callback = function()
+            loadstring(game:HttpGet("https://raw.githubusercontent.com/realredz/BloxFruits/refs/heads/main/Source.lua"))(Settings)        
+   end,
+})
+
+local Button = scriptTab:CreateButton({
+   Name = "hohohub",
+   Callback = function()
+            loadstring(game:HttpGet("https://raw.githubusercontent.com/acsu123/HOHO_H/main/Loading_UI"))()
+   
+   end,
+})
+
+local script2Tab = Window:CreateTab("anime dimensions👺", 4483362458) -- Title, Image
+local Section = script2Tab:CreateSection("scripts")
+
+local Button = script2Tab:CreateButton({
+   Name = "must be in the game",
+   Callback = function()
+            loadstring(game:HttpGet("https://raw.githubusercontent.com/Yanwanlnwza/SmellLikeHacker/main/Animedimensions.lua"))()
+   end,
+})
+
+local script3Tab = Window:CreateTab("fisch🐟", 4483362458) -- Title, Image
+local Section = script3Tab:CreateSection("scripts")
+
+local Button = script3Tab:CreateButton({
+   Name = "kicia",
+   Callback = function()
+            loadstring(game:HttpGet("https://rawscripts.net/raw/UPD-Fisch-OP-SCRIPT-Auto-Farm-Fast-Cash-Troll-Features-Best-GUI-Use-It-25561"))()        
+   end,
+})
+
+local script4Tab = Window:CreateTab("bloxfruits🍑 but very good🥵", 4483362458) -- Title, Image
+local Section = script4Tab:CreateSection("scripts")
+
+local Button = script4Tab:CreateButton({
+   Name = "fe script for these games",
+   Callback = function()
+            loadstring(game:HttpGet("https://raw.githubusercontent.com/BaconBABA/script/refs/heads/main/bloxgood.lua"))()
+   end,
+})
+
+local miscTab = Window:CreateTab("misc", 4483362458) -- Title, Image
+local Section = miscTab:CreateSection("misc")
+
+local Button = miscTab:CreateButton({
+   Name = "JOIN THE DISCORD SERVER",
+   Callback = function()
+            Rayfield:Notify({
+   Title = "https://discord.gg/tHjBVzUV",
+   Content = "",
+   Duration = 6.5,
+   Image = 4483362458,
+})
+   
+   end,
+})
+
+
