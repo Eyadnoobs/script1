@@ -101,6 +101,20 @@ noclip() -- to toggle noclip() and clip()
    end,
 })
 
+local Button = MainTab:CreateButton({
+   Name = "infinte yield",
+   Callback = function()
+            loadstring(game:HttpGet("https://raw.githubusercontent.com/EdgeIY/infiniteyield/master/source"))()
+   end,
+})
+
+local Button = MainTab:CreateButton({
+   Name = "Button Example",
+   Callback = function()
+            loadstring(game:HttpGet("https://raw.githubusercontent.com/infyiff/backup/main/dex.lua"))()
+   end,
+})
+
 local scriptTab = Window:CreateTab("bloxfruits🍑", 4483362458) -- Title, Image
 local Section = scriptTab:CreateSection("scripts")
 
