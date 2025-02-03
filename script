@@ -122,6 +122,13 @@ local Button = MainTab:CreateButton({
    end,
 })
 
+local Button = MainTab:CreateButton({
+   Name = "executer tester",
+   Callback = function()
+            loadstring(game:HttpGet("https://raw.githubusercontent.com/Eyadnoobs/script2-udt-executer-tester/refs/heads/main/script%20executer%20tester"))()`
+   end,
+})
+
 local scriptTab = Window:CreateTab("bloxfruits🍑", 4483362458) -- Title, Image
 local Section = scriptTab:CreateSection("scripts")
 
