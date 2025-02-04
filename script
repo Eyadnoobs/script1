@@ -177,6 +177,16 @@ local Button = script4Tab:CreateButton({
    end,
 })
 
+local script5Tab = Window:CreateTab("murder mystery 2 🔪", 4483362458) -- Title, Image
+local Section = script5Tab:CreateSection("scripts")
+
+local Button = script5Tab:CreateButton({
+   Name = "vynixu's mm2 script",
+   Callback = function()
+            loadstring(game:GetObjects("rbxassetid://4001118261")[1].Source)()
+   end,
+})
+
 local miscTab = Window:CreateTab("misc", 4483362458) -- Title, Image
 local Section = miscTab:CreateSection("misc")
 
