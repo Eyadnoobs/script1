@@ -140,7 +140,7 @@ local Button = scriptTab:CreateButton({
 })
 
 local Button = scriptTab:CreateButton({
-   Name = "hohohub",
+   Name = "hohohub (key 🔑)",
    Callback = function()
             loadstring(game:HttpGet("https://raw.githubusercontent.com/acsu123/HOHO_H/main/Loading_UI"))()
    
@@ -161,7 +161,7 @@ local script3Tab = Window:CreateTab("fisch🐟", 4483362458) -- Title, Image
 local Section = script3Tab:CreateSection("scripts")
 
 local Button = script3Tab:CreateButton({
-   Name = "kicia",
+   Name = "kicia (key 🔑)",
    Callback = function()
             loadstring(game:HttpGet("https://rawscripts.net/raw/UPD-Fisch-OP-SCRIPT-Auto-Farm-Fast-Cash-Troll-Features-Best-GUI-Use-It-25561"))()        
    end,
@@ -184,6 +184,18 @@ local Button = script5Tab:CreateButton({
    Name = "vynixu's mm2 script",
    Callback = function()
             loadstring(game:GetObjects("rbxassetid://4001118261")[1].Source)()
+   end,
+})
+
+local script6Tab = Window:CreateTab("meme fruits🍑🤓", 4483362458) -- Title, Image
+local Section = script6Tab:CreateSection("scripts")
+
+
+local Button = script6Tab:CreateButton({
+   Name = "it has no name(key 🔑)",
+   Callback = function()
+
+loadstring(game:HttpGet("https://raw.githubusercontent.com/OhhMyGehlee/me/refs/heads/main/me"))()
    end,
 })
 
