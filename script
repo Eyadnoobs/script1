@@ -166,9 +166,9 @@ local script3Tab = Window:CreateTab("fisch🐟", 4483362458) -- Title, Image
 local Section = script3Tab:CreateSection("scripts")
 
 local Button = script3Tab:CreateButton({
-   Name = "kicia (key 🔑)",
+   Name = "lunor (key 🔑)",
    Callback = function()
-            loadstring(game:HttpGet("https://rawscripts.net/raw/UPD-Fisch-OP-SCRIPT-Auto-Farm-Fast-Cash-Troll-Features-Best-GUI-Use-It-25561"))()        
+            loadstring(game:HttpGet("https://raw.githubusercontent.com/IdiotHubz/Scripts/refs/heads/main/Fisch/SpaceHub.lua"))()        
    end,
 })
 
