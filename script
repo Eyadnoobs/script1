@@ -204,6 +204,16 @@ loadstring(game:HttpGet("https://raw.githubusercontent.com/OhhMyGehlee/me/refs/h
    end,
 })
 
+local script7Tab = Window:CreateTab("More UNC🤓", 4483362458) -- Title, Image
+local Section = script6Tab:CreateSection("scripts")
+
+
+local Button = script7Tab:CreateButton({
+   Name = "More UNC script",
+   Callback = function()
+loadstring(game:HttpGet("https://scriptblox.com/raw/Universal-Script-MoreUNC-13110"))()
+})
+
 local miscTab = Window:CreateTab("misc", 4483362458) -- Title, Image
 local Section = miscTab:CreateSection("misc")
 
