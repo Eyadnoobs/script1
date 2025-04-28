@@ -212,6 +212,7 @@ local Button = script7Tab:CreateButton({
    Name = "More UNC script",
    Callback = function()
 loadstring(game:HttpGet("https://scriptblox.com/raw/Universal-Script-MoreUNC-13110"))()
+   end,
 })
 
 local miscTab = Window:CreateTab("misc", 4483362458) -- Title, Image
