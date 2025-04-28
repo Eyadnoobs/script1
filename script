@@ -205,7 +205,7 @@ loadstring(game:HttpGet("https://raw.githubusercontent.com/OhhMyGehlee/me/refs/h
 })
 
 local script7Tab = Window:CreateTab("More UNC🤓", 4483362458) -- Title, Image
-local Section = script6Tab:CreateSection("scripts")
+local Section = script7Tab:CreateSection("scripts")
 
 
 local Button = script7Tab:CreateButton({
