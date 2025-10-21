@@ -215,6 +215,25 @@ loadstring(game:HttpGet("https://scriptblox.com/raw/Universal-Script-MoreUNC-131
    end,
 })
 
+local scriptTab = Window:CreateTab("Ink game", 4483362458) -- Title, Image
+local Section = scriptTab:CreateSection("scripts")
+
+local Button = scriptTab:CreateButton({
+   Name = "Ringta",
+   Callback = function()
+            loadstring(game:HttpGet("https://pastefy.app/HIK6D47w/raw"))()
+            
+   end,
+})
+
+local Button = scriptTab:CreateButton({
+   Name = "Ax Scripts (key 🔑)",
+   Callback = function()
+            loadstring(game:HttpGet("https://raw.githubusercontent.com/AlexScriptX/Ink-Game-Script/refs/heads/main/Ink%20Game%20by%20AlexScriptX.lua"))()
+   
+   end,
+})
+
 local miscTab = Window:CreateTab("misc", 4483362458) -- Title, Image
 local Section = miscTab:CreateSection("misc")
 
