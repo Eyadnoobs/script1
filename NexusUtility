@@ -1,0 +1,701 @@
+if not game:IsLoaded() then
+    game.Loaded:Wait()
+end
+
+-- Clear out any broken previous instances
+if game:GetService("CoreGui"):FindFirstChild("NexusUltimateHub") then
+    game:GetService("CoreGui").NexusUltimateHub:Destroy()
+end
+
+local RunService = game:GetService("RunService")
+local TeleportService = game:GetService("TeleportService")
+local HttpService = game:GetService("HttpService")
+local Players = game:GetService("Players")
+local UserInputService = game:GetService("UserInputService")
+local ProximityPromptService = game:GetService("ProximityPromptService")
+local TweenService = game:GetService("TweenService")
+local Stats = game:GetService("Stats")
+
+local player = Players.LocalPlayer
+local camera = workspace.CurrentCamera or workspace:FindFirstChildOfClass("Camera")
+
+local settingsFile = "NexusUtilityConfig.json"
+local settingsData = {
+    noclipActive = false,
+    autoPromptActive = false,
+    flashTeleportActive = false,
+    customFOV = 70,
+    savedPosition = nil
+}
+
+local function saveSettings()
+    if writefile then
+        local success, encoded = pcall(function() return HttpService:JSONEncode(settingsData) end)
+        if success then writefile(settingsFile, encoded) end
+    end
+end
+
+local function loadSettings()
+    if readfile and isfile and isfile(settingsFile) then
+        local success, content = pcall(function() return readfile(settingsFile) end)
+        if success and content then
+            local decodedSuccess, decodedData = pcall(function() return HttpService:JSONDecode(content) end)
+            if decodedSuccess and type(decodedData) == "table" then
+                for k, v in pairs(decodedData) do settingsData[k] = v end
+            end
+        end
+    end
+end
+
+loadSettings()
+
+local waypointPart = nil
+local FLASH_DISTANCE = 25 
+local previewClone = nil
+local previewVfxItems = {}
+
+player.CharacterAdded:Connect(function()
+    camera = workspace.CurrentCamera or workspace:FindFirstChildOfClass("Camera")
+end)
+
+local function getFlashTargetDestination()
+    local character = player.Character
+    local hrp = character and character:FindFirstChild("HumanoidRootPart")
+    if not hrp or not camera then return nil end
+    
+    local startPos = hrp.Position
+    local lookDirection = camera.CFrame.LookVector.Unit
+    local rawTargetPos = startPos + (lookDirection * FLASH_DISTANCE)
+    
+    local raycastParams = RaycastParams.new()
+    raycastParams.FilterDescendantsInstances = {character, previewClone}
+    raycastParams.FilterType = Enum.RaycastFilterType.Exclude
+    
+    local firstCheck = workspace:Raycast(startPos, lookDirection * FLASH_DISTANCE, raycastParams)
+    local validatedTargetPos = rawTargetPos
+    
+    if firstCheck then
+        local wallHitPos = firstCheck.Position
+        local thicknessCheckStart = wallHitPos + (lookDirection * 3.5)
+        local thicknessCheck = workspace:Raycast(thicknessCheckStart, -lookDirection * 4, raycastParams)
+        
+        if thicknessCheck then
+            local wallBackPos = thicknessCheck.Position
+            local wallThickness = (wallHitPos - wallBackPos).Magnitude
+            if wallThickness <= 5.1 then
+                validatedTargetPos = wallBackPos + (lookDirection * 1.5)
+            else
+                validatedTargetPos = wallHitPos - (lookDirection * 1.5)
+            end
+        else
+            validatedTargetPos = thicknessCheckStart
+        end
+    end
+    
+    local floorResult = workspace:Raycast(validatedTargetPos + Vector3.new(0, 5, 0), Vector3.new(0, -20, 0), raycastParams)
+    if floorResult then return floorResult.Position + Vector3.new(0, 3, 0) end
+    return Vector3.new(validatedTargetPos.X, startPos.Y, validatedTargetPos.Z)
+end
+
+local function cleanTargetVisuals()
+    if previewClone then previewClone:Destroy() previewClone = nil end
+    for _, item in ipairs(previewVfxItems) do
+        if item then item:Destroy() end
+    end
+    previewVfxItems = {}
+end
+
+local function createTargetVisuals()
+    cleanTargetVisuals()
+    local character = player.Character
+    local hrp = character and character:FindFirstChild("HumanoidRootPart")
+    if not character or not hrp then return end
+    
+    character.Archivable = true
+    previewClone = character:Clone()
+    character.Archivable = false
+    previewClone.Name = "FlashTeleportPreviewClone"
+    
+    for _, obj in ipairs(previewClone:GetDescendants()) do
+        if obj:IsA("BasePart") then
+            obj.Anchored = true
+            obj.CanCollide = false 
+            obj.CanTouch = false   
+            obj.CanQuery = false   
+            obj.CastShadow = false
+            obj.Transparency = 0.6
+            obj.Color = Color3.fromRGB(0, 215, 255)
+            obj.Material = Enum.Material.ForceField 
+        elseif obj:IsA("Decal") then 
+            obj.Texture = "" 
+        elseif obj:IsA("Script") or obj:IsA("LocalScript") or obj:IsA("HumanoidDescription") then 
+            obj:Destroy() 
+        end
+    end
+    
+    local cloneHrp = previewClone:FindFirstChild("HumanoidRootPart")
+    if cloneHrp then
+        -- Particle Emitter FX attached directly inside the target clone root
+        local emitter = Instance.new("ParticleEmitter")
+        emitter.Color = ColorSequence.new(Color3.fromRGB(0, 235, 255))
+        emitter.Size = NumberSequence.new({NumberSequenceKeypoint.new(0, 1.2), NumberSequenceKeypoint.new(1, 0)})
+        emitter.Transparency = NumberSequence.new({NumberSequenceKeypoint.new(0, 0.2), NumberSequenceKeypoint.new(1, 1)})
+        emitter.Lifetime = NumberRange.new(0.4, 0.8)
+        emitter.Rate = 35
+        emitter.Speed = NumberRange.new(2, 5)
+        emitter.SpreadAngle = Vector2.new(360, 360)
+        emitter.Texture = "rbxassetid://242293441" 
+        emitter.Parent = cloneHrp
+        
+        local groundRing = Instance.new("Part")
+        groundRing.Name = "PreviewGroundRing"
+        groundRing.Shape = Enum.PartType.Cylinder
+        groundRing.Size = Vector3.new(0.4, 4.5, 4.5)
+        groundRing.Color = Color3.fromRGB(0, 215, 255)
+        groundRing.Material = Enum.Material.Neon
+        groundRing.Transparency = 0.75
+        groundRing.Anchored = true
+        groundRing.CanCollide = false
+        groundRing.CanTouch = false
+        groundRing.CanQuery = false
+        groundRing.Parent = workspace
+        
+        table.insert(previewVfxItems, groundRing)
+    end
+    
+    if previewClone:FindFirstChildOfClass("Humanoid") then 
+        previewClone:FindFirstChildOfClass("Humanoid").DisplayDistanceType = Enum.HumanoidDisplayDistanceType.None 
+    end
+    previewClone.Parent = workspace
+end
+
+local function triggerScreenFlashEffect()
+    local flashGui = Instance.new("ScreenGui", player:WaitForChild("PlayerGui"))
+    local flashFrame = Instance.new("Frame", flashGui)
+    flashFrame.Size = UDim2.new(1, 0, 1, 0)
+    flashFrame.BackgroundColor3 = Color3.fromRGB(255, 230, 100)
+    flashFrame.BorderSizePixel = 0; flashFrame.BackgroundTransparency = 0.4
+    
+    local tween = TweenService:Create(flashFrame, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundTransparency = 1})
+    tween:Play()
+    tween.Completed:Connect(function() flashGui:Destroy() end)
+end
+
+local function createElectricSparkFX(startPos, endPos)
+    local sound = Instance.new("Sound")
+    sound.SoundId = "rbxassetid://126172750038425" 
+    sound.Volume = 3.0
+    sound.PlayOnRemove = true
+    sound.Parent = workspace
+    sound:Destroy()
+
+    local function spawnSparkPoint(pos)
+        local part = Instance.new("Part", workspace)
+        part.Size = Vector3.new(2, 2, 2)
+        part.Position = pos
+        part.Anchored = true
+        part.CanCollide = false
+        part.CanTouch = false
+        part.CanQuery = false
+        part.Transparency = 1 
+        part.Color = Color3.fromRGB(255, 215, 0)
+        part.Material = Enum.Material.Neon
+
+        local box = Instance.new("SelectionBox", part)
+        box.Color3 = Color3.fromRGB(255, 235, 50)
+        box.Adornee = part
+        local tween = TweenService:Create(part, TweenInfo.new(0.3, Enum.EasingStyle.Quad), {Size = Vector3.new(0,0,0)})
+        tween:Play()
+        tween.Completed:Connect(function() part:Destroy() end)
+    end
+
+    spawnSparkPoint(startPos)
+    spawnSparkPoint(endPos)
+
+    local beamPart = Instance.new("Part", workspace)
+    beamPart.Anchored = true
+    beamPart.CanCollide = false
+    beamPart.CanTouch = false
+    beamPart.CanQuery = false
+    beamPart.Material = Enum.Material.Neon
+    beamPart.Color = Color3.fromRGB(255, 235, 50)
+    beamPart.Size = Vector3.new(0.4, 0.4, (startPos - endPos).Magnitude)
+    beamPart.CFrame = CFrame.lookAt(startPos, endPos) * CFrame.new(0, 0, -beamPart.Size.Z/2)
+
+    local beamTween = TweenService:Create(beamPart, TweenInfo.new(0.25, Enum.EasingStyle.Quad), {Size = Vector3.new(0, 0, beamPart.Size.Z), Transparency = 1})
+    beamTween:Play()
+    beamTween.Completed:Connect(function() beamPart:Destroy() end)
+end
+
+local flashTool = Instance.new("Tool")
+flashTool.Name = "Flash Teleport"
+flashTool.RequiresHandle = true
+
+local toolHandle = Instance.new("Part")
+toolHandle.Name = "Handle"
+toolHandle.Size = Vector3.new(0.5, 3, 0.5)
+toolHandle.Color = Color3.fromRGB(255, 215, 0)
+toolHandle.Material = Enum.Material.Neon
+toolHandle.Parent = flashTool
+
+local function executeFlashBlink()
+    local character = player.Character
+    local hrp = character and character:FindFirstChild("HumanoidRootPart")
+    if hrp then
+        local targetPosition = getFlashTargetDestination()
+        if targetPosition then
+            local originalPosition = hrp.Position
+            triggerScreenFlashEffect()
+            createElectricSparkFX(originalPosition, targetPosition)
+            hrp.CFrame = CFrame.lookAt(Vector3.new(), hrp.CFrame.LookVector * Vector3.new(1, 0, 1)) + targetPosition
+        end
+    end
+end
+
+flashTool.Activated:Connect(executeFlashBlink)
+flashTool.Equipped:Connect(function() 
+    if settingsData.flashTeleportActive then createTargetVisuals() end 
+end)
+flashTool.Unequipped:Connect(cleanTargetVisuals)
+
+local function syncFlashToolState()
+    if settingsData.flashTeleportActive then
+        local inBackpack = player.Backpack:FindFirstChild("Flash Teleport")
+        local inCharacter = player.Character and player.Character:FindFirstChild("Flash Teleport")
+        if not inBackpack and not inCharacter then
+            flashTool.Parent = player.Backpack
+        end
+    else
+        cleanTargetVisuals()
+        local t1 = player.Backpack:FindFirstChild("Flash Teleport")
+        local t2 = player.Character and player.Character:FindFirstChild("Flash Teleport")
+        if t1 then t1:Destroy() end 
+        if t2 then t2:Destroy() end
+    end
+end
+player.CharacterAdded:Connect(function() task.wait(0.5) syncFlashToolState() end)
+
+local ScreenGui = Instance.new("ScreenGui", game.CoreGui)
+ScreenGui.Name = "NexusUltimateHub"; ScreenGui.ResetOnSpawn = false
+
+local MainFrame = Instance.new("Frame", ScreenGui)
+MainFrame.Name = "MainFrame"; MainFrame.BackgroundColor3 = Color3.fromRGB(18, 18, 24); MainFrame.Position = UDim2.new(0.5, -110, 0.25, -150); MainFrame.Size = UDim2.new(0, 230, 0, 525); MainFrame.BorderSizePixel = 0; MainFrame.ClipsDescendants = false
+Instance.new("UICorner", MainFrame).CornerRadius = UDim.new(0, 10)
+local MainStroke = Instance.new("UIStroke", MainFrame)
+MainStroke.Thickness = 1.5; MainStroke.Color = Color3.fromRGB(45, 45, 60)
+
+local CanvasGroup = Instance.new("CanvasGroup", MainFrame)
+CanvasGroup.Size = UDim2.new(1, 0, 1, 0); CanvasGroup.BackgroundTransparency = 1; CanvasGroup.BorderSizePixel = 0
+
+local Header = Instance.new("Frame", CanvasGroup)
+Header.Size = UDim2.new(1, 0, 0, 40); Header.BackgroundColor3 = Color3.fromRGB(25, 25, 35); Header.BorderSizePixel = 0
+Instance.new("UICorner", Header).CornerRadius = UDim.new(0, 10)
+
+local Title = Instance.new("TextLabel", Header)
+Title.Size = UDim2.new(1, -12, 1, 0); Title.Position = UDim2.new(0, 12, 0, 0); Title.BackgroundTransparency = 1; Title.Text = "NEXUS ULTIMATE HUB"; Title.TextColor3 = Color3.fromRGB(240, 240, 245); Title.Font = Enum.Font.GothamBold; Title.TextSize = 12; Title.TextXAlignment = Enum.TextXAlignment.Left
+
+local ScrollContainer = Instance.new("ScrollingFrame", CanvasGroup)
+ScrollContainer.Position = UDim2.new(0, 0, 0, 42); ScrollContainer.Size = UDim2.new(1, 0, 1, -42); ScrollContainer.BackgroundTransparency = 1; ScrollContainer.BorderSizePixel = 0; ScrollContainer.CanvasSize = UDim2.new(0, 0, 0, 560); ScrollContainer.ScrollBarThickness = 3; ScrollContainer.ScrollBarImageColor3 = Color3.fromRGB(60, 60, 80)
+local Layout = Instance.new("UIListLayout", ScrollContainer)
+Layout.Padding = UDim.new(0, 6)
+Layout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+Instance.new("UIPadding", ScrollContainer).PaddingTop = UDim.new(0, 4)
+
+local function createProButton(text, layoutOrder, customBgColor, customParent)
+    local parentFrame = customParent or ScrollContainer
+    local btnFrame = Instance.new("Frame", parentFrame)
+    btnFrame.Size = UDim2.new(customParent and 1 or 0.92, 0, 0, 32); btnFrame.BackgroundColor3 = customBgColor or Color3.fromRGB(28, 28, 38); btnFrame.BorderSizePixel = 0; btnFrame.LayoutOrder = layoutOrder
+    Instance.new("UICorner", btnFrame).CornerRadius = UDim.new(0, 6)
+    local s = Instance.new("UIStroke", btnFrame)
+    s.Color = customBgColor and customBgColor:Lerp(Color3.fromRGB(255,255,255), 0.15) or Color3.fromRGB(45, 45, 55)
+
+    local button = Instance.new("TextButton", btnFrame)
+    button.Size = UDim2.new(1, 0, 1, 0); button.BackgroundTransparency = 1; button.Text = text; button.TextColor3 = Color3.fromRGB(220, 220, 230); button.Font = Enum.Font.GothamMedium; button.TextSize = 11
+
+    button.MouseEnter:Connect(function() btnFrame.BackgroundColor3 = (customBgColor or Color3.fromRGB(28, 28, 38)):Lerp(Color3.fromRGB(255,255,255), 0.1) end)
+    button.MouseLeave:Connect(function() btnFrame.BackgroundColor3 = customBgColor or Color3.fromRGB(28, 28, 38) end)
+    return button
+end
+
+local function createProToggle(text, layoutOrder)
+    local tFrame = Instance.new("Frame", ScrollContainer)
+    tFrame.Size = UDim2.new(0.92, 0, 0, 34); tFrame.BackgroundColor3 = Color3.fromRGB(24, 24, 32); tFrame.BorderSizePixel = 0; tFrame.LayoutOrder = layoutOrder
+    Instance.new("UICorner", tFrame).CornerRadius = UDim.new(0, 6)
+    local s = Instance.new("UIStroke", tFrame)
+    s.Color = Color3.fromRGB(40, 40, 50)
+
+    local label = Instance.new("TextLabel", tFrame)
+    label.Size = UDim2.new(0.6, 0, 1, 0); label.Position = UDim2.new(0, 10, 0, 0); label.BackgroundTransparency = 1; label.Text = text; label.TextColor3 = Color3.fromRGB(210, 210, 220); label.Font = Enum.Font.GothamMedium; label.TextSize = 11; label.TextXAlignment = Enum.TextXAlignment.Left
+
+    local indicator = Instance.new("Frame", tFrame)
+    indicator.Size = UDim2.new(0, 32, 0, 16); indicator.Position = UDim2.new(1, -42, 0.5, -8); indicator.BackgroundColor3 = Color3.fromRGB(40, 40, 50)
+    Instance.new("UICorner", indicator).CornerRadius = UDim.new(1, 0)
+
+    local dot = Instance.new("Frame", indicator)
+    dot.Size = UDim2.new(0, 10, 0, 10); dot.Position = UDim2.new(0, 3, 0.5, -5); dot.BackgroundColor3 = Color3.fromRGB(150, 150, 160)
+    Instance.new("UICorner", dot).CornerRadius = UDim.new(1, 0)
+
+    local button = Instance.new("TextButton", tFrame)
+    button.Size = UDim2.new(1, 0, 1, 0); button.BackgroundTransparency = 1; button.Text = ""
+    return button, indicator, dot
+end
+
+local JointServerRow = Instance.new("Frame", ScrollContainer)
+JointServerRow.Size = UDim2.new(0.92, 0, 0, 32)
+JointServerRow.BackgroundTransparency = 1
+JointServerRow.LayoutOrder = 1
+local RowLayout = Instance.new("UIGridLayout", JointServerRow)
+RowLayout.CellSize = UDim2.new(0.485, 0, 1, 0)
+RowLayout.CellPadding = UDim2.new(0.03, 0, 0, 0)
+
+local HopButton = createProButton("Server Hop", 1, nil, JointServerRow)
+local RejoinButton = createProButton("🔄 Rejoin", 2, nil, JointServerRow)
+
+local KickButton = createProButton("⚠️ Instant Quick Kick", 2, Color3.fromRGB(130, 25, 25)) 
+local NoclipBtn, NoclipInd, NoclipDot = createProToggle("Noclip Engine", 3)
+local PromptBtn, PromptInd, PromptDot = createProToggle("Auto Prompt", 4)
+local FlashBtn, FlashInd, FlashDot = createProToggle("⚡ Flash Teleport [V]", 5)
+
+-- FOV Slider Module
+local SliderContainer = Instance.new("Frame", ScrollContainer)
+SliderContainer.Size = UDim2.new(0.92, 0, 0, 45); SliderContainer.BackgroundColor3 = Color3.fromRGB(24, 24, 32); SliderContainer.LayoutOrder = 6
+Instance.new("UICorner", SliderContainer).CornerRadius = UDim.new(0, 6)
+local ss = Instance.new("UIStroke", SliderContainer)
+ss.Color = Color3.fromRGB(40, 40, 50)
+
+local SliderLabel = Instance.new("TextLabel", SliderContainer)
+SliderLabel.Size = UDim2.new(0.5, 0, 0, 20); SliderLabel.Position = UDim2.new(0, 10, 0, 2); SliderLabel.BackgroundTransparency = 1; SliderLabel.Text = "Field of View"; SliderLabel.TextColor3 = Color3.fromRGB(210, 210, 220); SliderLabel.Font = Enum.Font.GothamMedium; SliderLabel.TextSize = 11; SliderLabel.TextXAlignment = Enum.TextXAlignment.Left
+
+local SliderValue = Instance.new("TextLabel", SliderContainer)
+SliderValue.Size = UDim2.new(0.4, 0, 0, 20); SliderValue.Position = UDim2.new(1, -94, 0, 2); SliderValue.BackgroundTransparency = 1; SliderValue.Text = tostring(settingsData.customFOV); SliderValue.TextColor3 = Color3.fromRGB(0, 215, 255); SliderValue.Font = Enum.Font.Code; SliderValue.TextSize = 11; SliderValue.TextXAlignment = Enum.TextXAlignment.Right
+
+local SliderTrack = Instance.new("TextButton", SliderContainer)
+SliderTrack.Size = UDim2.new(1, -20, 0, 5); SliderTrack.Position = UDim2.new(0, 10, 1, -12); SliderTrack.BackgroundColor3 = Color3.fromRGB(45, 45, 55); SliderTrack.BorderSizePixel = 0; SliderTrack.Text = ""
+Instance.new("UICorner", SliderTrack).CornerRadius = UDim.new(1, 0)
+
+local SliderFill = Instance.new("Frame", SliderTrack)
+SliderFill.Size = UDim2.new(0, 0, 1, 0); SliderFill.BackgroundColor3 = Color3.fromRGB(0, 215, 255); SliderFill.BorderSizePixel = 0
+Instance.new("UICorner", SliderFill).CornerRadius = UDim.new(1, 0)
+
+local SetWpButton = createProButton("Set Waypoint [T]", 7)
+local TeleWpButton = createProButton("Teleport to Waypoint [F]", 8)
+
+local StatusFrame = Instance.new("Frame", ScrollContainer)
+StatusFrame.Size = UDim2.new(0.92, 0, 0, 22); StatusFrame.BackgroundColor3 = Color3.fromRGB(12, 12, 16); StatusFrame.LayoutOrder = 9
+Instance.new("UICorner", StatusFrame).CornerRadius = UDim.new(0, 4)
+
+local StatusLabel = Instance.new("TextLabel", StatusFrame)
+StatusLabel.Size = UDim2.new(1, 0, 1, 0); StatusLabel.BackgroundTransparency = 1; StatusLabel.Text = "Saved Pos: None"; StatusLabel.TextColor3 = Color3.fromRGB(140, 140, 150); StatusLabel.Font = Enum.Font.Code; StatusLabel.TextSize = 9
+
+local SepBorder = Instance.new("Frame", ScrollContainer)
+SepBorder.Size = UDim2.new(0.92, 0, 0, 2); SepBorder.BackgroundColor3 = Color3.fromRGB(45, 45, 60); SepBorder.BorderSizePixel = 0; SepBorder.LayoutOrder = 10
+
+-- ================= Integrated Fixed Server Joiner UI =================
+local JoinerHeader = Instance.new("TextLabel", ScrollContainer)
+JoinerHeader.Size = UDim2.new(0.92, 0, 0, 15); JoinerHeader.BackgroundTransparency = 1; JoinerHeader.Text = "🔗 DECRYPTED SERVER JOINER"; JoinerHeader.TextColor3 = Color3.fromRGB(255, 140, 0); JoinerHeader.Font = Enum.Font.GothamBold; JoinerHeader.TextSize = 10; JoinerHeader.TextXAlignment = Enum.TextXAlignment.Left; JoinerHeader.LayoutOrder = 11
+
+local JoinerInput = Instance.new("TextBox", ScrollContainer)
+JoinerInput.Size = UDim2.new(0.92, 0, 0, 28); JoinerInput.BackgroundColor3 = Color3.fromRGB(24, 24, 32); JoinerInput.LayoutOrder = 12; JoinerInput.Text = ""; JoinerInput.PlaceholderText = "Paste private server link here..."; JoinerInput.TextColor3 = Color3.fromRGB(255, 255, 255); JoinerInput.PlaceholderColor3 = Color3.fromRGB(100, 100, 115); JoinerInput.Font = Enum.Font.Gotham; JoinerInput.TextSize = 10; JoinerInput.ClearTextOnFocus = false
+Instance.new("UICorner", JoinerInput).CornerRadius = UDim.new(0, 5)
+local jis = Instance.new("UIStroke", JoinerInput)
+jis.Color = Color3.fromRGB(45, 45, 55)
+
+local JoinerBtn = Instance.new("TextButton", ScrollContainer)
+JoinerBtn.Size = UDim2.new(0.92, 0, 0, 28); JoinerBtn.BackgroundColor3 = Color3.fromRGB(0, 150, 255); JoinerBtn.LayoutOrder = 13; JoinerBtn.Text = "Join Server Instance"; JoinerBtn.TextColor3 = Color3.fromRGB(255, 255, 255); JoinerBtn.Font = Enum.Font.GothamBold; JoinerBtn.TextSize = 11
+Instance.new("UICorner", JoinerBtn).CornerRadius = UDim.new(0, 5)
+
+local JoinerStatus = Instance.new("TextLabel", ScrollContainer)
+JoinerStatus.Size = UDim2.new(0.92, 0, 0, 14); JoinerStatus.BackgroundTransparency = 1; JoinerStatus.Text = "Awaiting private link execution..."; JoinerStatus.TextColor3 = Color3.fromRGB(130, 130, 140); JoinerStatus.Font = Enum.Font.Gotham; JoinerStatus.TextSize = 9; JoinerStatus.LayoutOrder = 14
+
+local StatsFrame = Instance.new("Frame", MainFrame)
+StatsFrame.Name = "StatsFrame"
+StatsFrame.Size = UDim2.new(1, 0, 0, 75)
+StatsFrame.Position = UDim2.new(0, 0, 1, 10) 
+StatsFrame.BackgroundColor3 = Color3.fromRGB(18, 18, 24)
+StatsFrame.BorderSizePixel = 0
+Instance.new("UICorner", StatsFrame).CornerRadius = UDim.new(0, 8)
+local StatsStroke = Instance.new("UIStroke", StatsFrame)
+StatsStroke.Thickness = 1.2
+StatsStroke.Color = Color3.fromRGB(45, 45, 60)
+
+local function createStatLabel(text, yPos, color)
+    local lbl = Instance.new("TextLabel", StatsFrame)
+    lbl.Size = UDim2.new(1, -20, 0, 18)
+    lbl.Position = UDim2.new(0, 10, 0, yPos)
+    lbl.BackgroundTransparency = 1
+    lbl.Text = text
+    lbl.TextColor3 = color or Color3.fromRGB(200, 200, 210)
+    lbl.Font = Enum.Font.Code
+    lbl.TextSize = 11
+    lbl.TextXAlignment = Enum.TextXAlignment.Left
+    return lbl
+end
+
+local RegionLabel = createStatLabel("📍 Region: Fetching...", 8, Color3.fromRGB(255, 165, 0))
+local PingLabel = createStatLabel("⚡ Ping: 0 ms", 28, Color3.fromRGB(0, 215, 255))
+local FpsLabel = createStatLabel("🖥️ FPS: 0", 48, Color3.fromRGB(0, 230, 110))
+
+-- Dynamic Server Region Detection
+task.spawn(function()
+    local success, result = pcall(function()
+        return HttpService:JSONDecode(game:HttpGet("http://ip-api.com/json/")).country
+    end)
+    if success and result then
+        RegionLabel.Text = "📍 Region: " .. tostring(result):upper()
+    else
+        local locSuccess, locResult = pcall(function() return game:GetService("LocalizationService").RobloxLocaleId end)
+        if locSuccess and locResult then
+            RegionLabel.Text = "📍 Region: " .. tostring(locResult):match("%-(%a+)") or "UNKNOWN"
+        else
+            RegionLabel.Text = "📍 Region: SERVER LOCK"
+        end
+    end
+end)
+
+local fpsCount = 0
+local lastFpsTime = os.clock()
+local activeFps = 60
+
+RunService.RenderStepped:Connect(function()
+    fpsCount = fpsCount + 1
+    local now = os.clock()
+    if now - lastFpsTime >= 0.5 then 
+        activeFps = math.floor(fpsCount / (now - lastFpsTime))
+        FpsLabel.Text = "🖥️ FPS: " .. tostring(activeFps)
+        fpsCount = 0
+        lastFpsTime = now
+    end
+    StatsFrame.Visible = MainFrame.Visible
+end)
+
+task.spawn(function()
+    while task.wait(0.5) do
+        local ping = math.floor(Stats:GetNetworkMetricIdles() * 1000) or 0
+        if ping <= 0 then 
+            ping = math.floor(Stats.Network.ServerTickRate:GetValue())
+        end
+        PingLabel.Text = "⚡ Ping: " .. tostring(ping) .. " ms"
+    end
+end)
+
+RejoinButton.MouseButton1Click:Connect(function()
+    if #Players:GetPlayers() <= 1 then
+        TeleportService:Teleport(game.PlaceId, player)
+    else
+        TeleportService:TeleportToPlaceInstance(game.PlaceId, game.JobId, player)
+    end
+end)
+
+KickButton.MouseButton1Click:Connect(function()
+    player:Kick("Nexus Utility Hub: Manual client connection drop executed safely.")
+end)
+
+JoinerBtn.MouseButton1Click:Connect(function()
+    local rawInput = JoinerInput.Text:gsub("%s+", "")
+    if rawInput == "" then
+        JoinerStatus.TextColor3 = Color3.fromRGB(255, 70, 70); JoinerStatus.Text = "Please enter a valid link."
+        return
+    end
+
+    JoinerStatus.TextColor3 = Color3.fromRGB(0, 215, 255); JoinerStatus.Text = "Evaluating token settings..."
+    
+    local targetPlaceId = string.match(rawInput, "games/(%d+)") or string.match(rawInput, "placeId=(%d+)")
+    local privateLinkCode = string.match(rawInput, "privateServerLinkCode=(%d+)") or string.match(rawInput, "privateServerLinkCode=([%w%-]+)")
+
+    if not targetPlaceId then
+        JoinerStatus.TextColor3 = Color3.fromRGB(255, 70, 70); JoinerStatus.Text = "Error: Invalid link format."
+        return
+    end
+
+    targetPlaceId = tonumber(targetPlaceId)
+
+    if privateLinkCode then
+        JoinerStatus.Text = "Injecting Token... Swap same game if blocked."
+        task.spawn(function()
+            local success, err = pcall(function()
+                local options = Instance.new("TeleportOptions")
+                options:SetTeleportData({["PrivateServerLinkCode"] = privateLinkCode})
+                return TeleportService:TeleportAsync(targetPlaceId, {player}, options)
+            end)
+            if not success then
+                pcall(function() TeleportService:TeleportToPrivateServer(targetPlaceId, privateLinkCode, {player}) end)
+            end
+        end)
+    else
+        JoinerStatus.Text = "Rerouting to public map instance..."
+        pcall(function() TeleportService:Teleport(targetPlaceId, player) end)
+    end
+end)
+
+local function createWaypoint(position)
+    if waypointPart then waypointPart:Destroy() end
+    waypointPart = Instance.new("Part", workspace)
+    waypointPart.Size = Vector3.new(3, 0.5, 3); waypointPart.Position = position + Vector3.new(0, 1, 0); waypointPart.Anchored = true; waypointPart.CanCollide = false; waypointPart.Color = Color3.fromRGB(0, 215, 255); waypointPart.Material = Enum.Material.Neon
+
+    local billboard = Instance.new("BillboardGui", waypointPart)
+    billboard.Size = UDim2.new(0, 140, 0, 45); billboard.StudsOffset = Vector3.new(0, 2, 0); billboard.AlwaysOnTop = true
+    local text = Instance.new("TextLabel", billboard)
+    text.Size = UDim2.new(1, 0, 1, 0); text.BackgroundTransparency = 1; text.Text = "★ WAYPOINT ★"; text.TextColor3 = Color3.fromRGB(0, 215, 255); text.TextScaled = true; text.Font = Enum.Font.GothamBold
+end
+
+local function handleSetWaypoint()
+    local hrp = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
+    if hrp then
+        local pos = hrp.Position
+        settingsData.savedPosition = {pos.X, pos.Y, pos.Z}; saveSettings()
+        createWaypoint(pos)
+        StatusLabel.Text = string.format("Saved: %.1f, %.1f, %.1f", pos.X, pos.Y, pos.Z); StatusLabel.TextColor3 = Color3.fromRGB(0, 215, 255)
+    end
+end
+
+local function handleTeleportToWaypoint()
+    local hrp = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
+    if settingsData.savedPosition and hrp then
+        local pt = settingsData.savedPosition
+        hrp.CFrame = CFrame.new(Vector3.new(pt[1], pt[2] + 3, pt[3]))
+    end
+end
+
+SetWpButton.MouseButton1Click:Connect(handleSetWaypoint)
+TeleWpButton.MouseButton1Click:Connect(handleTeleportToWaypoint)
+
+local function updateToggleVisual(state, indicator, dot, activeColor, instant)
+    local duration = instant and 0 or 0.2
+    if state then
+        TweenService:Create(indicator, TweenInfo.new(duration), {BackgroundColor3 = activeColor}):Play()
+        TweenService:Create(dot, TweenInfo.new(duration), {Position = UDim2.new(1, -13, 0.5, -5), BackgroundColor3 = Color3.fromRGB(255, 255, 255)}):Play()
+    else
+        TweenService:Create(indicator, TweenInfo.new(duration), {BackgroundColor3 = Color3.fromRGB(40, 40, 50)}):Play()
+        TweenService:Create(dot, TweenInfo.new(duration), {Position = UDim2.new(0, 3, 0.5, -5), BackgroundColor3 = Color3.fromRGB(150, 150, 160)}):Play()
+    end
+end
+
+NoclipBtn.MouseButton1Click:Connect(function()
+    settingsData.noclipActive = not settingsData.noclipActive; saveSettings()
+    updateToggleVisual(settingsData.noclipActive, NoclipInd, NoclipDot, Color3.fromRGB(0, 180, 90))
+end)
+
+PromptBtn.MouseButton1Click:Connect(function()
+    settingsData.autoPromptActive = not settingsData.autoPromptActive; saveSettings()
+    updateToggleVisual(settingsData.autoPromptActive, PromptInd, PromptDot, Color3.fromRGB(120, 50, 210))
+end)
+
+FlashBtn.MouseButton1Click:Connect(function()
+    settingsData.flashTeleportActive = not settingsData.flashTeleportActive; saveSettings()
+    updateToggleVisual(settingsData.flashTeleportActive, FlashInd, FlashDot, Color3.fromRGB(240, 180, 0))
+    syncFlashToolState()
+end)
+
+HopButton.MouseButton1Click:Connect(function()
+    local success, response = pcall(function() return game:HttpGet("https://games.roblox.com/v1/games/"..game.PlaceId.."/servers/Public?sortOrder=Asc&limit=100") end)
+    if success then
+        local x = HttpService:JSONDecode(response)
+        for _, v in pairs(x.data) do
+            if v.playing < v.maxPlayers and v.id ~= game.JobId then
+                TeleportService:TeleportToPlaceInstance(game.PlaceId, v.id, player)
+                break
+            end
+        end
+    end
+end)
+
+local minFOV, maxFOV, isSliding = 70, 120, false
+local function updateFOVSlider(inputPosition)
+    local percentage = math.clamp((inputPosition.X - SliderTrack.AbsolutePosition.X) / SliderTrack.AbsoluteSize.X, 0, 1)
+    SliderFill.Size = UDim2.new(percentage, 0, 1, 0)
+    settingsData.customFOV = math.floor(minFOV + (percentage * (maxFOV - minFOV)))
+    SliderValue.Text = tostring(settingsData.customFOV); saveSettings()
+end
+SliderTrack.InputBegan:Connect(function(input) if input.UserInputType == Enum.UserInputType.MouseButton1 then isSliding = true; updateFOVSlider(input.Position) end end)
+UserInputService.InputChanged:Connect(function(input) if isSliding and input.UserInputType == Enum.UserInputType.MouseMovement then updateFOVSlider(input.Position) end end)
+UserInputService.InputEnded:Connect(function(input) if input.UserInputType == Enum.UserInputType.MouseButton1 then isSliding = false end end)
+
+-- Configuration Deployment Bootstrapper
+local function applyLoadedUIConfigurations()
+    updateToggleVisual(settingsData.noclipActive, NoclipInd, NoclipDot, Color3.fromRGB(0, 180, 90), true)
+    updateToggleVisual(settingsData.autoPromptActive, PromptInd, PromptDot, Color3.fromRGB(120, 50, 210), true)
+    updateToggleVisual(settingsData.flashTeleportActive, FlashInd, FlashDot, Color3.fromRGB(240, 180, 0), true)
+    SliderFill.Size = UDim2.new((settingsData.customFOV - minFOV) / (maxFOV - minFOV), 0, 1, 0)
+    syncFlashToolState()
+    if settingsData.savedPosition then
+        local pt = settingsData.savedPosition
+        createWaypoint(Vector3.new(pt[1], pt[2], pt[3]))
+        StatusLabel.Text = string.format("Saved: %.1f, %.1f, %.1f", pt[1], pt[2], pt[3]); StatusLabel.TextColor3 = Color3.fromRGB(0, 215, 255)
+    end
+end
+applyLoadedUIConfigurations()
+
+-- Premium Minimized Display Node
+local CircleToggle = Instance.new("TextButton", ScreenGui)
+CircleToggle.Name = "CircleToggle"; CircleToggle.Size = UDim2.new(0, 45, 0, 45); CircleToggle.Position = UDim2.new(0.08, 0, 0.15, 0); CircleToggle.BackgroundColor3 = Color3.fromRGB(25, 25, 35); CircleToggle.Text = "N"; CircleToggle.TextColor3 = Color3.fromRGB(0, 215, 255); CircleToggle.Font = Enum.Font.GothamBold; CircleToggle.TextSize = 16; CircleToggle.BorderSizePixel = 0; CircleToggle.ZIndex = 10
+Instance.new("UICorner", CircleToggle).CornerRadius = UDim.new(1, 0)
+local CircleStroke = Instance.new("UIStroke", CircleToggle)
+CircleStroke.Thickness = 2; CircleStroke.Color = Color3.fromRGB(0, 215, 255)
+
+local menuIsOpen = true
+CircleToggle.MouseButton1Click:Connect(function()
+    menuIsOpen = not menuIsOpen
+    MainFrame.Visible = menuIsOpen
+    CircleStroke.Color = menuIsOpen and Color3.fromRGB(0, 215, 255) or Color3.fromRGB(100, 100, 110)
+    CircleToggle.TextColor3 = menuIsOpen and Color3.fromRGB(0, 215, 255) or Color3.fromRGB(150, 150, 160)
+end)
+
+local function setupDraggable(targetFrame, clickSurface)
+    local dragging, dragInput, dragStart, startPos
+    clickSurface.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            dragging = true; dragStart = input.Position; startPos = targetFrame.Position
+        end
+    end)
+    UserInputService.InputChanged:Connect(function(input)
+        if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
+            local delta = input.Position - dragStart
+            targetFrame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+        end
+    end)
+    UserInputService.InputEnded:Connect(function(input) if input.UserInputType == Enum.UserInputType.MouseButton1 then dragging = false end end)
+end
+setupDraggable(MainFrame, Header)
+setupDraggable(CircleToggle, CircleToggle)
+
+-- Runtime Automation Loops
+UserInputService.InputBegan:Connect(function(input, processed)
+    if processed then return end 
+    if input.KeyCode == Enum.KeyCode.T then handleSetWaypoint()
+    elseif input.KeyCode == Enum.KeyCode.F then handleTeleportToWaypoint()
+    elseif input.KeyCode == Enum.KeyCode.V and settingsData.flashTeleportActive then executeFlashBlink() end
+end)
+
+ProximityPromptService.PromptButtonHoldBegan:Connect(function(p) if settingsData.autoPromptActive and fireproximityprompt then fireproximityprompt(p) end end)
+
+RunService.Heartbeat:Connect(function()
+    if camera then camera.FieldOfView = settingsData.customFOV end
+    
+    if settingsData.flashTeleportActive and previewClone and player.Character then
+        local dest = getFlashTargetDestination()
+        local hrp = player.Character:FindFirstChild("HumanoidRootPart")
+        if dest and hrp then
+            -- Sync the clone placement
+            local nextCF = CFrame.lookAt(Vector3.new(), hrp.CFrame.LookVector * Vector3.new(1, 0, 1)) + dest
+            previewClone:SetPrimaryPartCFrame(nextCF)
+            
+            -- Keep collision, touches, and indexing entirely muted on clone parts
+            for _, p in ipairs(previewClone:GetDescendants()) do 
+                if p:IsA("BasePart") then 
+                    p.CanCollide = false 
+                    p.CanTouch = false
+                    p.CanQuery = false
+                end 
+            end
+            
+            local groundRing = previewVfxItems[1]
+            if groundRing and groundRing.Parent then
+                groundRing.CFrame = nextCF * CFrame.new(0, -2.8, 0) * CFrame.Angles(0, 0, math.rad(90))
+            end
+        end
+    end
+    
+    if settingsData.noclipActive and player.Character then
+        for _, p in ipairs(player.Character:GetDescendants()) do if p:IsA("BasePart") then p.CanCollide = false end end
+    end
+end)
